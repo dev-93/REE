@@ -104,7 +104,34 @@ export default function InteractiveMap() {
                     
                     console.log('✅ 카자흐스탄 국경 레이어 추가 완료');
                 } catch (error) {
-                    console.error('❌ 국경 데이터 로드 실패:', error);
+                    console.error('❌ 카자흐스탄 국경 데이터 로드 실패:', error);
+                }
+
+                // 한국 국경 하이라이트 추가
+                try {
+                    const response = await fetch('/south-korea-border.json');
+                    const koreaGeoJSON = await response.json();
+                    
+                    map.current?.addSource('korea-border', {
+                        type: 'geojson',
+                        data: koreaGeoJSON
+                    });
+                    
+                    // 굵은 테두리만 표시
+                    map.current?.addLayer({
+                        id: 'korea-outline',
+                        type: 'line',
+                        source: 'korea-border',
+                        paint: {
+                            'line-color': '#3b82f6',
+                            'line-width': 3,
+                            'line-opacity': 0.8
+                        }
+                    });
+                    
+                    console.log('✅ 한국 국경 레이어 추가 완료');
+                } catch (error) {
+                    console.error('❌ 한국 국경 데이터 로드 실패:', error);
                 }
                 
                 loadData();
