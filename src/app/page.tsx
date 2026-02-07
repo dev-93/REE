@@ -6,7 +6,7 @@ export default function Home() {
     return (
         <main className="flex h-screen overflow-hidden bg-[#0a0a0c]">
             <Sidebar />
-            <div className="flex-1 relative">
+            <div className="flex-1 relative h-full">
                 <InteractiveMap />
 
                 {/* Real-time Stats Overlay */}
