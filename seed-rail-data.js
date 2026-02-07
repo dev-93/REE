@@ -21,7 +21,7 @@ const routes = [
             [82.4833, 45.25],    // Dostyk
             [76.8897, 43.2389],   // Almaty
             [71.4491, 51.1694],   // Astana
-            [51.37, 51.21]        // Oral (Uralsk) - Western point
+            [51.3667, 51.2333]    // Oral (Uralsk) - Accurate Coordinates
         ],
         type: 'TCR'
     },

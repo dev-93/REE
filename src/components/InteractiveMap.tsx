@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/utils/supabase-client';
@@ -51,7 +51,6 @@ const parseWKB = (hex: string) => {
 export default function InteractiveMap() {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
-    const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
 
     useEffect(() => {
         console.log('🗺️ InteractiveMap useEffect 시작');
@@ -63,7 +62,6 @@ export default function InteractiveMap() {
             return;
         }
 
-        setDebugInfo('Creating map...');
         console.log('🎨 Mapbox 인스턴스 생성 중...');
 
         try {
@@ -77,25 +75,49 @@ export default function InteractiveMap() {
             });
 
             console.log('✅ Mapbox 인스턴스 생성 완료');
-            setDebugInfo('Map created, waiting for load...');
 
-            map.current.on('load', () => {
+            map.current.on('load', async () => {
                 console.log('🎉 Mapbox 로드 완료!');
-                setDebugInfo('Map loaded successfully!');
                 map.current?.resize();
+                
+                // 카자흐스탄 국경 하이라이트 추가
+                try {
+                    const response = await fetch('/kazakhstan-border.json');
+                    const kazakhstanGeoJSON = await response.json();
+                    
+                    map.current?.addSource('kazakhstan-border', {
+                        type: 'geojson',
+                        data: kazakhstanGeoJSON
+                    });
+                    
+                    // 굵은 테두리만 표시
+                    map.current?.addLayer({
+                        id: 'kazakhstan-outline',
+                        type: 'line',
+                        source: 'kazakhstan-border',
+                        paint: {
+                            'line-color': '#3b82f6',
+                            'line-width': 3,
+                            'line-opacity': 0.8
+                        }
+                    });
+                    
+                    console.log('✅ 카자흐스탄 국경 레이어 추가 완료');
+                } catch (error) {
+                    console.error('❌ 국경 데이터 로드 실패:', error);
+                }
+                
                 loadData();
             });
 
             map.current.on('error', (e) => {
                 console.error('❌ Mapbox 오류:', e);
-                setDebugInfo(`Error: ${e.error.message}`);
             });
 
             map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
         } catch (error) {
             console.error('❌ Mapbox 초기화 실패:', error);
-            setDebugInfo(`Init failed: ${error}`);
         }
 
         const loadData = async () => {
@@ -130,10 +152,22 @@ export default function InteractiveMap() {
             mines?.forEach((m: any) => {
                 const geo = parseWKB(m.location);
                 if (geo?.type === 'Point') {
-                    new mapboxgl.Marker({ color: '#ef4444' })
+                    // 커스텀 마커 엘리먼트 생성
+                    const el = document.createElement('div');
+                    el.className = 'custom-marker';
+                    el.innerHTML = `
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-white bg-red-600/80 px-1.5 py-0.5 rounded-full mb-1 whitespace-nowrap border border-red-400/50 shadow-sm backdrop-blur-sm">
+                                ${m.name}
+                            </span>
+                            <div class="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md animate-pulse"></div>
+                        </div>
+                    `;
+
+                    new mapboxgl.Marker({ element: el, anchor: 'bottom' })
                         .setLngLat(geo.coordinates as [number, number])
                         .setPopup(
-                            new mapboxgl.Popup().setHTML(`
+                            new mapboxgl.Popup({ offset: 25 }).setHTML(`
                                 <div class="p-2 text-black">
                                     <h3 class="font-bold text-sm text-red-600">${m.name}</h3>
                                     <p class="text-[10px] mt-1 text-gray-600">자원: ${m.mineral_type}</p>
@@ -197,25 +231,31 @@ export default function InteractiveMap() {
     return (
         <div className="absolute inset-0">
             <div ref={mapContainer} className="absolute inset-0 z-0" />
-            
-            {/* 디버그 정보 표시 */}
-            <div className="absolute top-6 left-6 bg-black/80 text-white p-3 rounded text-xs font-mono z-50">
-                <div>Status: {debugInfo}</div>
-                <div>Token: {mapboxgl.accessToken ? '✅' : '❌'}</div>
-                <div>Container: {mapContainer.current ? '✅' : '❌'}</div>
-            </div>
 
             <div className="absolute bottom-6 left-6 glass p-4 rounded-xl z-10 border border-white/10">
                 <h3 className="text-sm font-semibold text-white mb-1">카자흐스탄-한국 공급망</h3>
                 <p className="text-xs text-gray-400">실시간 광산 및 물류 거점 데이터</p>
-                <div className="mt-3 flex gap-4 text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <span className="text-gray-300">물류 거점(Station)</span>
+                <div className="mt-3 flex flex-col gap-2 text-[10px]">
+                    <div className="flex gap-4">
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <span className="text-gray-300">물류 거점 (Station)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                            <span className="text-gray-300">희토류 광산 (Mine)</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span className="text-gray-300">희토류 광산(Mine)</span>
+                    <div className="w-full h-px bg-white/10 my-1"></div>
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-4 h-0.5 bg-blue-400"></span>
+                            <span className="text-blue-200">중국 횡단 철도 (TCR)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-4 h-0.5 bg-orange-400"></span>
+                            <span className="text-orange-200">중간 회랑 (TITR)</span>
+                        </div>
                     </div>
                 </div>
             </div>
