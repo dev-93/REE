@@ -1,9 +1,22 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/utils/supabase-client';
+import RouteMetrics from './RouteMetrics';
+
+// Haversine formula to calculate distance between two points in km
+const haversine = (c1: [number, number], c2: [number, number]) => {
+    const R = 6371; // Earth radius in km
+    const dLat = (c2[1] - c1[1]) * Math.PI / 180;
+    const dLon = (c2[0] - c1[0]) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(c1[1] * Math.PI / 180) * Math.cos(c2[1] * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 
@@ -51,6 +64,7 @@ const parseWKB = (hex: string) => {
 export default function InteractiveMap() {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
+    const [metrics, setMetrics] = useState<{ dist: number; time: number } | null>(null);
 
     useEffect(() => {
         console.log('🗺️ InteractiveMap useEffect 시작');
@@ -162,6 +176,9 @@ export default function InteractiveMap() {
             stations?.forEach((s: any) => {
                 const geo = parseWKB(s.location);
                 if (geo?.type === 'Point') {
+                    // Skip markers for maritime waypoints (clutter reduction)
+                    if (s.info?.waypoint) return;
+
                     // 한국 항구는 인디고(Indigo), 카자흐스탄 거점은 블루(Blue)
                     const isKorea = s.info?.korea;
                     const markerColor = isKorea ? '#6366f1' : '#3b82f6';
@@ -343,6 +360,270 @@ export default function InteractiveMap() {
             });
             */
 
+            // 3. 데이터 기반 물류 경로 시각화 (Route: Bakeno -> Aktau Port)
+            const bakenoMine = mines?.find((m: any) => m.name.includes('Bakeno'));
+            const kzRailNames = [
+                'Zhangiz-Tobe',
+                'Almaty',
+                'Kyzylorda',
+                'Beyneu',
+                'Mangystau',
+                'Aktau'
+            ];
+            const internationalNames = ['Baku', 'Tbilisi', 'Poti', 'Bosphorus Strait', 'Dardanelles Strait', 'Aegean Sea', 'Mediterranean Sea', 'Suez Canal', 'Bab el-Mandeb', 'Sri Lanka', 'Singapore', 'Busan'];
+            const allRouteNames = [...kzRailNames, ...internationalNames];
+
+            const allNodes = allRouteNames.map(name => {
+                const s = stations?.find((s: any) => s.name && s.name.toUpperCase().includes(name.toUpperCase()));
+                if (!s) console.warn(`Route station not found: ${name}`);
+                return s;
+            }).filter(Boolean);
+
+            const kzRailNodes = kzRailNames.map(name => {
+                const s = stations?.find((s: any) => s.name && s.name.toUpperCase().includes(name.toUpperCase()));
+                return s;
+            }).filter(Boolean);
+
+            console.log('Route nodes found:', allNodes.length, 'Mine found:', !!bakenoMine);
+
+            if (bakenoMine && kzRailNodes.length > 0) {
+                // Leg 1: First-mile (Bakeno -> Zhangiz-Tobe) - TRUCK
+                const mineGeo = parseWKB(bakenoMine.location);
+                const mineCoords = mineGeo?.type === 'Point' ? mineGeo.coordinates : [bakenoMine.lng, bakenoMine.lat];
+                
+                const firstStation = kzRailNodes[0];
+                const firstStationGeo = parseWKB(firstStation.location);
+                const firstStationCoords = firstStationGeo?.type === 'Point' ? firstStationGeo.coordinates : [firstStation.lng, firstStation.lat];
+
+                if (mineCoords[0] && mineCoords[1] && firstStationCoords[0] && firstStationCoords[1]) {
+                    const truckSourceId = 'bakeno-truck-route';
+                    if (!map.current?.getSource(truckSourceId)) {
+                        map.current?.addSource(truckSourceId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                properties: {},
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: [[mineCoords[0], mineCoords[1]], [firstStationCoords[0], firstStationCoords[1]]]
+                                }
+                            }
+                        });
+                        map.current?.addLayer({
+                            id: 'bakeno-truck-layer',
+                            type: 'line',
+                            source: truckSourceId,
+                            paint: {
+                                'line-color': '#9ca3af',
+                                'line-width': 4,
+                                'line-dasharray': [2, 2],
+                                'line-opacity': 1.0
+                            }
+                        });
+                    }
+                }
+
+                // Leg 2: Main-haul (Zhangiz-Tobe -> ... -> Aktau) - TRAIN
+                const railCoordinates: [number, number][] = kzRailNodes.map(s => {
+                    const geo = parseWKB(s.location);
+                    return (geo?.type === 'Point' ? geo.coordinates : [s.lng, s.lat]) as [number, number];
+                });
+
+                if (railCoordinates.length > 1) {
+                    const railSourceId = 'bakeno-rail-route';
+                    if (!map.current?.getSource(railSourceId)) {
+                        map.current?.addSource(railSourceId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                properties: { description: 'Main-haul Rail: Bakeno Supply Chain' },
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: railCoordinates
+                                }
+                            }
+                        });
+                        map.current?.addLayer({
+                            id: 'bakeno-rail-layer',
+                            type: 'line',
+                            source: railSourceId,
+                            paint: {
+                                'line-color': '#3b82f6',
+                                'line-width': 8,
+                                'line-opacity': 1.0
+                            }
+                        });
+                        
+                        // 진행 방향 표시 (Symbol layer)
+                        map.current?.addLayer({
+                            id: 'bakeno-rail-arrows',
+                            type: 'symbol',
+                            source: railSourceId,
+                            layout: {
+                                'symbol-placement': 'line',
+                                'symbol-spacing': 100,
+                                'text-field': '▶',
+                                'text-size': 10,
+                                'text-keep-upright': false,
+                                'text-allow-overlap': true
+                            },
+                            paint: {
+                                'text-color': '#ffffff',
+                                'text-halo-color': '#3b82f6',
+                                'text-halo-width': 1
+                            }
+                        });
+                    }
+                }
+
+                // Calculate Metrics
+                let totalD = 0;
+                let totalT = 0;
+
+                // Truck segment (Bakeno -> Zhangiz-Tobe)
+                const dTruck = haversine(mineCoords as [number, number], firstStationCoords as [number, number]);
+                totalD += dTruck;
+                totalT += dTruck / 60; // 60km/h
+
+                // Rail segments
+                for (let i = 0; i < railCoordinates.length - 1; i++) {
+                    const dRail = haversine(railCoordinates[i], railCoordinates[i+1]);
+                    totalD += dRail;
+                    totalT += dRail / 50; // 50km/h
+                }
+
+                setMetrics({ dist: Math.round(totalD), time: totalT });
+
+                // Leg 3: Caspian Ferry (Aktau -> Baku)
+                const aktauStation = allNodes.find(s => s.name.toUpperCase().includes('AKTAU'));
+                const bakuStation = allNodes.find(s => s.name.toUpperCase().includes('BAKU'));
+                
+                if (aktauStation && bakuStation) {
+                    const aktauPos = (parseWKB(aktauStation.location)?.coordinates || [aktauStation.lng, aktauStation.lat]) as [number, number];
+                    const bakuPos = (parseWKB(bakuStation.location)?.coordinates || [bakuStation.lng, bakuStation.lat]) as [number, number];
+                    
+                    const ferrySourceId = 'aktau-baku-ferry';
+                    if (!map.current?.getSource(ferrySourceId)) {
+                        map.current?.addSource(ferrySourceId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                properties: {},
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: [aktauPos, bakuPos]
+                                }
+                            }
+                        });
+                        map.current?.addLayer({
+                            id: 'aktau-baku-ferry-layer',
+                            type: 'line',
+                            source: ferrySourceId,
+                            paint: {
+                                'line-color': '#6366f1', // Indigo (Maritime)
+                                'line-width': 4,
+                                'line-dasharray': [2, 2],
+                                'line-opacity': 0.8
+                            }
+                        });
+                    }
+
+                    const dFerry = haversine(aktauPos as [number, number], bakuPos as [number, number]);
+                    totalD += dFerry;
+                    totalT += dFerry / 25; // 25km/h Ferry
+                }
+
+                // Leg 4: Georgian Rail (Baku -> Tbilisi -> Poti)
+                const caucasusStations = allNodes.filter(s => 
+                    ['BAKU', 'TBILISI', 'POTI'].some(n => s.name.toUpperCase().includes(n))
+                ).sort((a, b) => {
+                    const order = ['BAKU', 'TBILISI', 'POTI'];
+                    return order.findIndex(n => a.name.toUpperCase().includes(n)) - 
+                           order.findIndex(n => b.name.toUpperCase().includes(n));
+                });
+
+                if (caucasusStations.length > 1) {
+                    const caucasusCoords = caucasusStations.map(s => (parseWKB(s.location)?.coordinates || [s.lng, s.lat]) as [number, number]);
+                    const caucasusSourceId = 'caucasus-rail';
+                    if (!map.current?.getSource(caucasusSourceId)) {
+                        map.current?.addSource(caucasusSourceId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                properties: {},
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: caucasusCoords
+                                }
+                            }
+                        });
+                        map.current?.addLayer({
+                            id: 'caucasus-rail-layer',
+                            type: 'line',
+                            source: caucasusSourceId,
+                            paint: {
+                                'line-color': '#3b82f6',
+                                'line-width': 6,
+                                'line-opacity': 0.9
+                            }
+                        });
+                    }
+
+                    for (let i = 0; i < caucasusCoords.length - 1; i++) {
+                        const dC = haversine(caucasusCoords[i] as [number, number], caucasusCoords[i+1] as [number, number]);
+                        totalD += dC;
+                        totalT += dC / 40; // 40km/h Rail in Georgia
+                    }
+                }
+
+                // Leg 5: Maritime (Poti -> Bosphorus -> Dardanelles -> Aegean -> Mediterranean -> Suez -> Bab el-Mandeb -> Sri Lanka -> Singapore -> Busan)
+                const maritimeNames = ['Poti', 'Bosphorus Strait', 'Dardanelles Strait', 'Aegean Sea', 'Mediterranean Sea', 'Suez Canal', 'Bab el-Mandeb', 'Sri Lanka', 'Singapore', 'Busan'];
+                const maritimeNodes = allNodes.filter(s => 
+                    maritimeNames.some(n => s.name.toUpperCase().includes(n.toUpperCase()))
+                ).sort((a, b) => {
+                    return maritimeNames.findIndex(n => a.name.toUpperCase().includes(n.toUpperCase())) - 
+                           maritimeNames.findIndex(n => b.name.toUpperCase().includes(n.toUpperCase()));
+                });
+                
+                if (maritimeNodes.length > 1) {
+                    const maritimeCoords = maritimeNodes.map(s => (parseWKB(s.location)?.coordinates || [s.lng, s.lat]) as [number, number]);
+                    
+                    const shipSourceId = 'poti-busan-ship';
+                    if (!map.current?.getSource(shipSourceId)) {
+                        map.current?.addSource(shipSourceId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                properties: {},
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: maritimeCoords
+                                }
+                            }
+                        });
+                        map.current?.addLayer({
+                            id: 'poti-busan-ship-layer',
+                            type: 'line',
+                            source: shipSourceId,
+                            paint: {
+                                'line-color': '#6366f1',
+                                'line-width': 3,
+                                'line-dasharray': [4, 4],
+                                'line-opacity': 0.7
+                            }
+                        });
+                    }
+
+                    for (let i = 0; i < maritimeCoords.length - 1; i++) {
+                        const dM = haversine(maritimeCoords[i], maritimeCoords[i+1]);
+                        totalD += dM;
+                        totalT += dM / 35; // Average speed 35km/h for large vessels
+                    }
+                }
+
+                setMetrics({ dist: Math.round(totalD), time: totalT });
+            }
+
             console.log('✅ 데이터 로딩 완료');
         };
 
@@ -355,6 +636,14 @@ export default function InteractiveMap() {
     return (
         <div className="absolute inset-0">
             <div ref={mapContainer} className="absolute inset-0 z-0" />
+
+            {/* Route Metrics Widget */}
+            {metrics && (
+                <RouteMetrics 
+                    totalDistance={metrics.dist} 
+                    estimatedTime={metrics.time} 
+                />
+            )}
 
             <div className="absolute bottom-6 left-6 glass p-4 rounded-xl z-10 border border-white/10 w-[240px]">
                 <h3 className="text-sm font-semibold text-white mb-1">카자흐스탄-한국 공급망</h3>

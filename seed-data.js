@@ -139,6 +139,87 @@ export const stations = [
         lng: 127.7010,
         capacity: '포스코퓨처엠 / 리튬 가공 클러스터',
         info: { port: true, korea: true },
+    },
+    
+    // --- Middle Corridor (TITR) Extension ---
+    {
+        name: '바쿠 (Baku)',
+        lat: 40.4093,
+        lng: 49.8671,
+        capacity: 'Caspian Sea Hub',
+        info: { port: true, titr: true, country: 'Azerbaijan' },
+    },
+    {
+        name: '트빌리시 (Tbilisi)',
+        lat: 41.7151,
+        lng: 44.8271,
+        capacity: 'Caucasian Hub',
+        info: { rail: true, titr: true, country: 'Georgia' },
+    },
+    {
+        name: '포티 (Poti)',
+        lat: 42.1461,
+        lng: 41.6719,
+        capacity: 'Black Sea Port',
+        info: { port: true, titr: true, country: 'Georgia' },
+    },
+    
+    // --- Global Maritime Waypoints (Refined) ---
+    {
+        name: '보스포루스 해협 (Bosphorus Strait)',
+        lat: 41.221,
+        lng: 29.129,
+        capacity: 'Black Sea Exit Gateway',
+        info: { port: true, waypoint: true, country: 'Turkey' },
+    },
+    {
+        name: '다르다넬스 해협 (Dardanelles Strait)',
+        lat: 40.150,
+        lng: 26.400,
+        capacity: 'Marmara Sea Exit Gateway',
+        info: { port: true, waypoint: true, country: 'Turkey' },
+    },
+    {
+        name: '에게해 (Aegean Sea)',
+        lat: 37.500,
+        lng: 25.000,
+        capacity: 'Mediterranean Transit (Aegean)',
+        info: { port: true, waypoint: true, country: 'International' },
+    },
+    {
+        name: '지중해 (Mediterranean Sea)',
+        lat: 34.500,
+        lng: 31.500,
+        capacity: 'Mediterranean Transit (Cyprus West)',
+        info: { port: true, waypoint: true, country: 'International' },
+    },
+    {
+        name: '수에즈 운하 (Suez Canal)',
+        lat: 29.9668,
+        lng: 32.5498,
+        capacity: 'Suez Canal Transit',
+        info: { port: true, waypoint: true, country: 'Egypt' },
+    },
+    {
+        name: '싱가포르 (Singapore)',
+        lat: 1.3521,
+        lng: 103.8198,
+        capacity: 'Malacca Strait Hub',
+        info: { port: true, waypoint: true, country: 'Singapore' },
+    },
+    {
+        name: '바브엘만데브 해협 (Bab el-Mandeb)',
+        lat: 12.6000,
+        lng: 43.4167,
+        capacity: 'Red Sea Exit',
+        info: { port: true, waypoint: true, country: 'Yemen/Djibouti' },
+    },
+    {
+        name: '스리랑카 (Sri Lanka)',
+        lat: 5.9147,
+        lng: 80.5353,
+        capacity: 'Southern Indian Ocean Hub',
+        info: { port: true, waypoint: true, country: 'Sri Lanka' },
     }
 ];
 

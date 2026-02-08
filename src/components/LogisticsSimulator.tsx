@@ -65,14 +65,17 @@ export default function LogisticsSimulator() {
 
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">도착지 (Destination)</label>
-                        <select className="w-full bg-[#1a1a1e] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
+                        <select 
+                            defaultValue="Busan"
+                            className="w-full bg-[#1a1a1e] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors"
+                        >
                             <option value="">도착지를 선택하세요</option>
                             <optgroup label="🇰🇷 대한민국 주요 항구">
-                                <option selected>부산항 (Busan Port)</option>
-                                <option>인천항 (Incheon Port)</option>
-                                <option>평택·당진항</option>
-                                <option>광양항</option>
-                                <option>포항영일만항</option>
+                                <option value="Busan">부산항 (Busan Port)</option>
+                                <option value="Incheon">인천항 (Incheon Port)</option>
+                                <option value="Pyeongtaek">평택·당진항</option>
+                                <option value="Gwangyang">광양항</option>
+                                <option value="Pohang">포항영일만항</option>
                             </optgroup>
                         </select>
                     </div>
