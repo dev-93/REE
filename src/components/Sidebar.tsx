@@ -12,15 +12,20 @@ import {
     ChevronRight,
 } from 'lucide-react';
 
+interface SidebarProps {
+    activeTab: string;
+    onTabChange: (tab: string) => void;
+}
+
 const menuItems = [
-    { icon: LayoutDashboard, label: '개요', active: true },
-    { icon: MapIcon, label: '공급망 지도', active: false },
-    { icon: Ship, label: '물류 루트 시뮬레이터', active: false },
-    { icon: TrendingUp, label: '희토류 시세 분석', active: false },
-    { icon: Database, label: '광산 데이터베이스', active: false },
+    { icon: LayoutDashboard, label: '개요', id: 'overview' },
+    { icon: MapIcon, label: '공급망 지도', id: 'map' },
+    { icon: Ship, label: '물류 루트 시뮬레이터', id: 'simulator' },
+    { icon: TrendingUp, label: '희토류 시세 분석', id: 'analysis' },
+    { icon: Database, label: '광산 데이터베이스', id: 'database' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     const [isOpen, setIsOpen] = useState(true);
 
     return (
@@ -51,11 +56,12 @@ export default function Sidebar() {
             <nav className="flex-1 space-y-2">
                 {menuItems.map((item) => (
                     <button
-                        key={item.label}
+                        key={item.id}
+                        onClick={() => onTabChange(item.id)}
                         className={`w-full flex items-center ${
                             isOpen ? 'gap-3 px-4' : 'justify-center px-0'
                         } py-3 rounded-lg transition-all ${
-                            item.active
+                            activeTab === item.id
                                 ? 'bg-primary/20 text-primary border border-primary/30'
                                 : 'text-gray-400 hover:bg-white/5 hover:text-white'
                         }`}
