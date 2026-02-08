@@ -176,28 +176,73 @@ export default function InteractiveMap() {
                 }
             });
 
+            // Mine Details Data (Rich Text)
+            const MINE_DETAILS: Record<string, any> = {
+                '바케노 (Bakeno)': {
+                    location: '동카자흐스탄',
+                    features: '과거 리튬 생산 기지, 재개발 가능성 높음',
+                    reserves: '25,000톤',
+                    grade: '평균 2.7 ~ 5.3%',
+                    ref: 'mindat.org'
+                },
+                '쿠이레크티콜 (Kuyrekti-Kol)': {
+                    location: '아크몰라 주 (추정 위치)',
+                    features: '자석 제작 필수 원료인 희토류 매장',
+                    reserves: '정보 없음',
+                    grade: '정보 없음',
+                    ref: 'N/A'
+                },
+                '베르크네-에스페 (Verkhne-Espe)': {
+                    location: '동카자흐스탄',
+                    features: '대규모 매장량 확인 지역',
+                    reserves: '정보 없음',
+                    grade: '정보 없음',
+                    ref: 'N/A'
+                }
+            };
+
             mines?.forEach((m: any) => {
                 const geo = parseWKB(m.location);
                 if (geo?.type === 'Point') {
+                    const details = MINE_DETAILS[m.name] || {
+                        location: '정보 없음',
+                        features: '정보 없음',
+                        reserves: '정보 없음',
+                        grade: '정보 없음',
+                        ref: ''
+                    };
+
                     // 커스텀 마커 엘리먼트 생성
                     const el = document.createElement('div');
-                    el.className = 'custom-marker';
+                    el.className = 'custom-marker group cursor-pointer'; // group 클래스 추가 for hover effects
                     el.innerHTML = `
-                        <div class="flex flex-col items-center">
-                            <span class="text-[10px] font-bold text-white bg-red-600/80 px-1.5 py-0.5 rounded-full mb-1 whitespace-nowrap border border-red-400/50 shadow-sm backdrop-blur-sm">
+                        <div class="flex flex-col items-center transition-transform hover:scale-110">
+                            <span class="text-[11px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full mb-1 whitespace-nowrap border border-red-400 shadow-sm z-10">
                                 ${m.name}
                             </span>
-                            <div class="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md animate-pulse"></div>
+                            <div class="relative w-4 h-4">
+                                <div class="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75"></div>
+                                <div class="relative w-4 h-4 bg-red-600 rounded-full border-2 border-white shadow-md"></div>
+                            </div>
                         </div>
                     `;
 
                     new mapboxgl.Marker({ element: el, anchor: 'bottom' })
                         .setLngLat(geo.coordinates as [number, number])
                         .setPopup(
-                            new mapboxgl.Popup({ offset: 25 }).setHTML(`
-                                <div class="p-2 text-black">
-                                    <h3 class="font-bold text-sm text-red-600">${m.name}</h3>
-                                    <p class="text-[10px] mt-1 text-gray-600">자원: ${m.mineral_type}</p>
+                            new mapboxgl.Popup({ offset: 25, maxWidth: '300px', className: 'custom-popup' }).setHTML(`
+                                <div class="p-3 text-sm bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-100 font-sans">
+                                    <h3 class="font-bold text-base text-gray-900 border-b pb-2 mb-2 flex items-center justify-between">
+                                        ${m.name}
+                                        <span class="text-xs font-normal text-white bg-red-500 px-1.5 py-0.5 rounded">${m.mineral_type}</span>
+                                    </h3>
+                                    <div class="space-y-1.5 text-xs text-gray-700">
+                                        <div class="flex justify-between"><span class="text-gray-500">위치:</span> <span class="font-medium text-right">${details.location}</span></div>
+                                        <div class="flex flex-col gap-0.5"><span class="text-gray-500">특징:</span> <span class="font-medium text-gray-900 bg-gray-50 p-1 rounded leading-relaxed">${details.features}</span></div>
+                                        <div class="flex justify-between"><span class="text-gray-500">추정 매장량:</span> <span class="font-medium">${details.reserves}</span></div>
+                                        <div class="flex justify-between"><span class="text-gray-500">품위(Grade):</span> <span class="font-medium">${details.grade}</span></div>
+                                        ${details.ref && details.ref !== 'N/A' ? `<div class="mt-2 pt-2 border-t flex justify-between items-center"><span class="text-gray-400">참고:</span> <a href="#" class="text-blue-500 hover:underline truncate ml-2 max-w-[120px]">${details.ref}</a></div>` : ''}
+                                    </div>
                                 </div>
                             `)
                         )

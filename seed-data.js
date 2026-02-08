@@ -78,44 +78,28 @@ export const stations = [
 
 export const mines = [
     {
-        name: 'Katco (Uranium)',
-        lat: 44.5,
-        lng: 68.5,
-        mineral_type: 'Uranium',
-        reserve_amount: 50000,
-        production_capacity: 2000
+        name: '바케노 (Bakeno)',
+        lat: 49.70567,
+        lng: 82.93569,
+        mineral_type: '리튬, 탄탈륨',
+        reserve_amount: 25000, // 톤 (from image)
+        production_capacity: 0
     },
     {
-        name: 'Inkai (Uranium)',
-        lat: 45.3,
-        lng: 67.8,
-        mineral_type: 'Uranium',
-        reserve_amount: 30000,
-        production_capacity: 1500
+        name: '쿠이레크티콜 (Kuyrekti-Kol)',
+        lat: 51.50000, // Approximate (Akmola region)
+        lng: 71.50000, // Approximate (Akmola region)
+        mineral_type: '네오디뮴, 희토류',
+        reserve_amount: 0,
+        production_capacity: 0
     },
     {
-        name: 'Kundybay (Yttrium)',
-        lat: 51.8,
-        lng: 63.5,
-        mineral_type: 'Rare Earth (Y)',
-        reserve_amount: 12000,
-        production_capacity: 800
-    },
-    {
-        name: 'Akbulak (Cerium)',
-        lat: 50.5,
-        lng: 60.8,
-        mineral_type: 'Rare Earth (Ce)',
-        reserve_amount: 15000,
-        production_capacity: 500
-    },
-    {
-        name: 'Kengir (Lithium)',
-        lat: 48.0,
-        lng: 67.6,
-        mineral_type: 'Lithium',
-        reserve_amount: 20000,
-        production_capacity: 1000
+        name: '베르크네-에스페 (Verkhne-Espe)',
+        lat: 48.10000,
+        lng: 81.45000,
+        mineral_type: '리튬, 베릴륨',
+        reserve_amount: 0,
+        production_capacity: 0
     }
 ];
 
