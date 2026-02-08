@@ -61,227 +61,93 @@ const parseWKB = (hex: string) => {
     }
 };
 
-export default function InteractiveMap() {
+interface InteractiveMapProps {
+    activeTab?: string;
+}
+
+export default function InteractiveMap({ activeTab }: InteractiveMapProps) {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
+    const stationMarkers = useRef<mapboxgl.Marker[]>([]);
+    const mineMarkers = useRef<mapboxgl.Marker[]>([]);
     const [metrics, setMetrics] = useState<{ dist: number; time: number } | null>(null);
 
     useEffect(() => {
-        console.log('🗺️ InteractiveMap useEffect 시작');
-        console.log('Mapbox Token:', mapboxgl.accessToken ? '✅ 존재함' : '❌ 없음');
-        console.log('Map Container:', mapContainer.current ? '✅ 존재함' : '❌ 없음');
-        
-        if (map.current || !mapContainer.current) {
-            console.log('⏭️ 이미 초기화됨 또는 컨테이너 없음');
-            return;
-        }
-
-        console.log('🎨 Mapbox 인스턴스 생성 중...');
+        if (map.current || !mapContainer.current) return;
 
         try {
             map.current = new mapboxgl.Map({
                 container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/streets-v12', // 더 명확한 스타일로 변경
+                style: 'mapbox://styles/mapbox/streets-v12',
                 center: [67.8, 48.0],
                 zoom: 4,
-                pitch: 0, // pitch를 0으로 설정하여 2D로 확인
                 trackResize: true,
             });
 
-            console.log('✅ Mapbox 인스턴스 생성 완료');
-
             map.current.on('load', async () => {
-                console.log('🎉 Mapbox 로드 완료!');
                 map.current?.resize();
                 
-                // 카자흐스탄 국경 하이라이트 추가
-                try {
-                    const response = await fetch('/kazakhstan-border.json');
-                    const kazakhstanGeoJSON = await response.json();
-                    
-                    map.current?.addSource('kazakhstan-border', {
-                        type: 'geojson',
-                        data: kazakhstanGeoJSON
-                    });
-                    
-                    // 굵은 테두리만 표시
-                    map.current?.addLayer({
-                        id: 'kazakhstan-outline',
-                        type: 'line',
-                        source: 'kazakhstan-border',
-                        paint: {
-                            'line-color': '#3b82f6',
-                            'line-width': 3,
-                            'line-opacity': 0.8
-                        }
-                    });
-                    
-                    console.log('✅ 카자흐스탄 국경 레이어 추가 완료');
-                } catch (error) {
-                    console.error('❌ 카자흐스탄 국경 데이터 로드 실패:', error);
-                }
+                // Add Country Borders
+                const addBorder = async (url: string, id: string) => {
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        map.current?.addSource(`${id}-border`, { type: 'geojson', data });
+                        map.current?.addLayer({
+                            id: `${id}-outline`,
+                            type: 'line',
+                            source: `${id}-border`,
+                            paint: { 'line-color': '#3b82f6', 'line-width': 3, 'line-opacity': 0.8 }
+                        });
+                    } catch (e) {
+                        console.error(`Failed to load border: ${id}`, e);
+                    }
+                };
+                addBorder('/kazakhstan-border.json', 'kazakhstan');
+                addBorder('/south-korea-border.json', 'korea');
 
-                // 한국 국경 하이라이트 추가
-                try {
-                    const response = await fetch('/south-korea-border.json');
-                    const koreaGeoJSON = await response.json();
-                    
-                    map.current?.addSource('korea-border', {
-                        type: 'geojson',
-                        data: koreaGeoJSON
-                    });
-                    
-                    // 굵은 테두리만 표시
-                    map.current?.addLayer({
-                        id: 'korea-outline',
-                        type: 'line',
-                        source: 'korea-border',
-                        paint: {
-                            'line-color': '#3b82f6',
-                            'line-width': 3,
-                            'line-opacity': 0.8
-                        }
-                    });
-                    
-                    console.log('✅ 한국 국경 레이어 추가 완료');
-                } catch (error) {
-                    console.error('❌ 한국 국경 데이터 로드 실패:', error);
-                }
-                
                 loadData();
             });
 
-            map.current.on('error', (e) => {
-                console.error('❌ Mapbox 오류:', e);
-            });
-
             map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
         } catch (error) {
-            console.error('❌ Mapbox 초기화 실패:', error);
+            console.error('Mapbox initialization failed:', error);
         }
 
         const loadData = async () => {
-            console.log('📊 데이터 로딩 시작...');
             if (!map.current) return;
 
-            // 1. 역 & 광산 데이터 (Markers)
             const [{ data: stations }, { data: mines }] = await Promise.all([
                 supabase.from('stations').select('*'),
                 supabase.from('mines').select('*'),
             ]);
 
-            console.log('Stations:', stations?.length, 'Mines:', mines?.length);
+            // Clear markers
+            stationMarkers.current.forEach(m => m.remove());
+            mineMarkers.current.forEach(m => m.remove());
+            stationMarkers.current = [];
+            mineMarkers.current = [];
 
+            // Add Station Markers
             stations?.forEach((s: any) => {
                 const geo = parseWKB(s.location);
-                if (geo?.type === 'Point') {
-                    // Skip markers for maritime waypoints (clutter reduction)
-                    if (s.info?.waypoint) return;
-
-                    // 한국 항구는 인디고(Indigo), 카자흐스탄 거점은 블루(Blue)
+                if (geo?.type === 'Point' && !s.info?.waypoint) {
                     const isKorea = s.info?.korea;
                     const markerColor = isKorea ? '#6366f1' : '#3b82f6';
-                    
-                    new mapboxgl.Marker({ color: markerColor })
+                    const m = new mapboxgl.Marker({ color: markerColor })
                         .setLngLat(geo.coordinates as [number, number])
-                        .setPopup(
-                            new mapboxgl.Popup().setHTML(`
-                                <div class="p-2 text-black">
-                                    <h3 class="font-bold text-sm text-blue-600">
-                                        ${isKorea ? '🇰🇷 ' : '🇰🇿 '}${s.name}
-                                    </h3>
-                                    <p class="text-[10px] mt-1 text-gray-600">처리 능력: ${s.capacity}</p>
-                                </div>
-                            `)
-                        )
+                        .setPopup(new mapboxgl.Popup().setHTML(`<div class="p-2 text-black"><h3 class="font-bold text-sm text-blue-600">${isKorea ? '🇰🇷 ' : '🇰🇿 '}${s.name}</h3><p class="text-[10px] mt-1 text-gray-600">처리 능력: ${s.capacity}</p></div>`))
                         .addTo(map.current!);
+                    stationMarkers.current.push(m);
                 }
             });
 
-            mines?.forEach((m: any) => {
-                // GeoJSON (Supabase) vs Seed Data (Flat lat/lng) handling
-                // Use type assertion to ensure lat/lng are treated as numbers
-                const lat = (m.location?.coordinates?.[1] || m.lat) as number;
-                const lng = (m.location?.coordinates?.[0] || m.lng) as number;
-
-                // 광물 타입에 따라 색상/스타일 구분
-                const isMagnet = m.info?.type === 'Magnet';
-                const markerColor = isMagnet ? '#a855f7' : '#ef4444'; // Purple for Magnet, Red for Battery
-                const icon = isMagnet ? '🧲' : '🔋';
-                
-                if (lat && lng) {
-                    const el = document.createElement('div');
-                    el.className = 'mine-marker';
-                    el.style.backgroundColor = markerColor;
-                    el.style.width = '24px';
-                    el.style.height = '24px';
-                    el.style.borderRadius = '50%';
-                    el.style.border = '2px solid white';
-                    el.style.boxShadow = `0 0 10px ${markerColor}`;
-                    el.style.cursor = 'pointer';
-
-                    new mapboxgl.Marker(el)
-                        .setLngLat([lng, lat])
-                        .setPopup(
-                            new mapboxgl.Popup({ offset: 25 })
-                                .setHTML(`
-                                    <div class="p-2 min-w-[200px]">
-                                        <h3 class="font-bold text-sm mb-1 text-black flex items-center gap-1">
-                                            <span>${icon}</span>
-                                            ${m.name}
-                                        </h3>
-                                        <p class="text-xs text-gray-600 mb-1">
-                                            <span class="font-semibold">${m.mineral_type}</span>
-                                        </p>
-                                        <p class="text-xs text-gray-500 mb-1">매장량: ${m.reserve_amount > 0 ? m.reserve_amount.toLocaleString() + '톤' : '추정치'}</p>
-                                        ${m.info?.business_point ? `<p class="text-[10px] text-blue-600 bg-blue-50 p-1 rounded mt-1">💡 ${m.info.business_point}</p>` : ''}
-                                    </div>
-                                `)
-                        )
-                        .addTo(map.current!);
-                }
-            });
-
-            // Mine Details Data (Rich Text)
-            const MINE_DETAILS: Record<string, any> = {
-                '바케노 (Bakeno)': {
-                    location: '동카자흐스탄',
-                    features: '과거 리튬 생산 기지, 재개발 가능성 높음',
-                    reserves: '25,000톤',
-                    grade: '평균 2.7 ~ 5.3%',
-                    ref: 'mindat.org'
-                },
-                '쿠이레크티콜 (Kuyrekti-Kol)': {
-                    location: '아크몰라 주 (추정 위치)',
-                    features: '자석 제작 필수 원료인 희토류 매장',
-                    reserves: '정보 없음',
-                    grade: '정보 없음',
-                    ref: 'N/A'
-                },
-                '베르크네-에스페 (Verkhne-Espe)': {
-                    location: '동카자흐스탄',
-                    features: '대규모 매장량 확인 지역',
-                    reserves: '정보 없음',
-                    grade: '정보 없음',
-                    ref: 'N/A'
-                }
-            };
-
+            // Add Mine Markers
             mines?.forEach((m: any) => {
                 const geo = parseWKB(m.location);
                 if (geo?.type === 'Point') {
-                    const details = MINE_DETAILS[m.name] || {
-                        location: '정보 없음',
-                        features: '정보 없음',
-                        reserves: '정보 없음',
-                        grade: '정보 없음',
-                        ref: ''
-                    };
-
-                    // 커스텀 마커 엘리먼트 생성
                     const el = document.createElement('div');
-                    el.className = 'custom-marker group cursor-pointer'; // group 클래스 추가 for hover effects
+                    el.className = 'custom-marker group cursor-pointer';
                     el.innerHTML = `
                         <div class="flex flex-col items-center transition-transform hover:scale-110">
                             <span class="text-[11px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full mb-1 whitespace-nowrap border border-red-400 shadow-sm z-10">
@@ -293,399 +159,100 @@ export default function InteractiveMap() {
                             </div>
                         </div>
                     `;
-
-                    new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+                    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
                         .setLngLat(geo.coordinates as [number, number])
-                        .setPopup(
-                            new mapboxgl.Popup({ offset: 25, maxWidth: '300px', className: 'custom-popup' }).setHTML(`
-                                <div class="p-3 text-sm bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-100 font-sans">
-                                    <h3 class="font-bold text-base text-gray-900 border-b pb-2 mb-2 flex items-center justify-between">
-                                        ${m.name}
-                                        <span class="text-xs font-normal text-white bg-red-500 px-1.5 py-0.5 rounded">${m.mineral_type}</span>
-                                    </h3>
-                                    <div class="space-y-1.5 text-xs text-gray-700">
-                                        <div class="flex justify-between"><span class="text-gray-500">위치:</span> <span class="font-medium text-right">${details.location}</span></div>
-                                        <div class="flex flex-col gap-0.5"><span class="text-gray-500">특징:</span> <span class="font-medium text-gray-900 bg-gray-50 p-1 rounded leading-relaxed">${details.features}</span></div>
-                                        <div class="flex justify-between"><span class="text-gray-500">추정 매장량:</span> <span class="font-medium">${details.reserves}</span></div>
-                                        <div class="flex justify-between"><span class="text-gray-500">품위(Grade):</span> <span class="font-medium">${details.grade}</span></div>
-                                        ${details.ref && details.ref !== 'N/A' ? `<div class="mt-2 pt-2 border-t flex justify-between items-center"><span class="text-gray-400">참고:</span> <a href="#" class="text-blue-500 hover:underline truncate ml-2 max-w-[120px]">${details.ref}</a></div>` : ''}
-                                    </div>
-                                </div>
-                            `)
-                        )
+                        .setPopup(new mapboxgl.Popup({ offset: 25, maxWidth: '300px' }).setHTML(`<div class="p-3 text-sm bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-100 font-sans"><h3 class="font-bold text-base text-gray-900 border-b pb-2 mb-2 flex items-center justify-between">${m.name}<span class="text-xs font-normal text-white bg-red-500 px-1.5 py-0.5 rounded">${m.mineral_type}</span></h3></div>`))
                         .addTo(map.current!);
+                    mineMarkers.current.push(marker);
                 }
             });
 
-            // 2. 철도 노선 데이터 (Layers) - 잠시 숨김 처리 (사용자 요청: "일단 역 사이를 긋는 선을 표시하지 말아줘")
-            /*
-            const { data: rails } = await supabase.from('rail_lines').select('*');
-            console.log('Rail lines:', rails?.length);
-            
-            rails?.forEach((r: any, idx: number) => {
-                const geo = parseWKB(r.route);
-                if (geo?.type === 'LineString') {
-                    const sourceId = `rail-${idx}`;
-                    const isTCR = r.name.includes('TCR');
-                    
-                    if (map.current?.getSource(sourceId)) return;
+            // Route Visualization (Visible only in Simulator mode)
+            const showRoute = activeTab === 'simulator';
+            const visibility = showRoute ? 'visible' : 'none';
 
-                    map.current?.addSource(sourceId, {
-                        type: 'geojson',
-                        data: {
-                            type: 'Feature',
-                            properties: { name: r.name },
-                            geometry: {
-                                type: 'LineString',
-                                coordinates: geo.coordinates as any,
-                            },
-                        },
-                    });
-
-                    map.current?.addLayer({
-                        id: `${sourceId}-layer`,
-                        type: 'line',
-                        source: sourceId,
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round',
-                        },
-                        paint: {
-                            'line-color': isTCR ? '#60a5fa' : '#fb923c',
-                            'line-width': 3,
-                            'line-opacity': 0.8,
-                        },
-                    });
-                }
-            });
-            */
-
-            // 3. 데이터 기반 물류 경로 시각화 (Route: Bakeno -> Aktau Port)
             const bakenoMine = mines?.find((m: any) => m.name.includes('Bakeno'));
-            const kzRailNames = [
-                'Zhangiz-Tobe',
-                'Almaty',
-                'Kyzylorda',
-                'Beyneu',
-                'Mangystau',
-                'Aktau'
-            ];
+            const kzRailNames = ['Zhangiz-Tobe', 'Almaty', 'Kyzylorda', 'Beyneu', 'Mangystau', 'Aktau'];
             const internationalNames = ['Baku', 'Tbilisi', 'Poti', 'Bosphorus Strait', 'Dardanelles Strait', 'Aegean Sea', 'Mediterranean Sea', 'Suez Canal', 'Bab el-Mandeb', 'Sri Lanka', 'Singapore', 'Busan'];
-            const allRouteNames = [...kzRailNames, ...internationalNames];
-
-            const allNodes = allRouteNames.map(name => {
-                const s = stations?.find((s: any) => s.name && s.name.toUpperCase().includes(name.toUpperCase()));
-                if (!s) console.warn(`Route station not found: ${name}`);
-                return s;
-            }).filter(Boolean);
-
-            const kzRailNodes = kzRailNames.map(name => {
-                const s = stations?.find((s: any) => s.name && s.name.toUpperCase().includes(name.toUpperCase()));
-                return s;
-            }).filter(Boolean);
-
-            console.log('Route nodes found:', allNodes.length, 'Mine found:', !!bakenoMine);
+            
+            const kzRailNodes = kzRailNames.map(name => stations?.find((s: any) => s.name?.toUpperCase().includes(name.toUpperCase()))).filter(Boolean);
+            const maritimeNodes = internationalNames.map(name => stations?.find((s: any) => s.name?.toUpperCase().includes(name.toUpperCase()))).filter(Boolean);
 
             if (bakenoMine && kzRailNodes.length > 0) {
-                // Leg 1: First-mile (Bakeno -> Zhangiz-Tobe) - TRUCK
-                const mineGeo = parseWKB(bakenoMine.location);
-                const mineCoords = mineGeo?.type === 'Point' ? mineGeo.coordinates : [bakenoMine.lng, bakenoMine.lat];
-                
-                const firstStation = kzRailNodes[0];
-                const firstStationGeo = parseWKB(firstStation.location);
-                const firstStationCoords = firstStationGeo?.type === 'Point' ? firstStationGeo.coordinates : [firstStation.lng, firstStation.lat];
-
-                if (mineCoords[0] && mineCoords[1] && firstStationCoords[0] && firstStationCoords[1]) {
-                    const truckSourceId = 'bakeno-truck-route';
-                    if (!map.current?.getSource(truckSourceId)) {
-                        map.current?.addSource(truckSourceId, {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: [[mineCoords[0], mineCoords[1]], [firstStationCoords[0], firstStationCoords[1]]]
-                                }
-                            }
-                        });
-                        map.current?.addLayer({
-                            id: 'bakeno-truck-layer',
-                            type: 'line',
-                            source: truckSourceId,
-                            paint: {
-                                'line-color': '#9ca3af',
-                                'line-width': 4,
-                                'line-dasharray': [2, 2],
-                                'line-opacity': 1.0
-                            }
-                        });
-                    }
-                }
-
-                // Leg 2: Main-haul (Zhangiz-Tobe -> ... -> Aktau) - TRAIN
-                const railCoordinates: [number, number][] = kzRailNodes.map(s => {
-                    const geo = parseWKB(s.location);
-                    return (geo?.type === 'Point' ? geo.coordinates : [s.lng, s.lat]) as [number, number];
-                });
-
-                if (railCoordinates.length > 1) {
-                    const railSourceId = 'bakeno-rail-route';
-                    if (!map.current?.getSource(railSourceId)) {
-                        map.current?.addSource(railSourceId, {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                properties: { description: 'Main-haul Rail: Bakeno Supply Chain' },
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: railCoordinates
-                                }
-                            }
-                        });
-                        map.current?.addLayer({
-                            id: 'bakeno-rail-layer',
-                            type: 'line',
-                            source: railSourceId,
-                            paint: {
-                                'line-color': '#3b82f6',
-                                'line-width': 8,
-                                'line-opacity': 1.0
-                            }
-                        });
-                        
-                        // 진행 방향 표시 (Symbol layer)
-                        map.current?.addLayer({
-                            id: 'bakeno-rail-arrows',
-                            type: 'symbol',
-                            source: railSourceId,
-                            layout: {
-                                'symbol-placement': 'line',
-                                'symbol-spacing': 100,
-                                'text-field': '▶',
-                                'text-size': 10,
-                                'text-keep-upright': false,
-                                'text-allow-overlap': true
-                            },
-                            paint: {
-                                'text-color': '#ffffff',
-                                'text-halo-color': '#3b82f6',
-                                'text-halo-width': 1
-                            }
-                        });
-                    }
-                }
-
-                // Calculate Metrics
                 let totalD = 0;
                 let totalT = 0;
 
-                // Truck segment (Bakeno -> Zhangiz-Tobe)
-                const dTruck = haversine(mineCoords as [number, number], firstStationCoords as [number, number]);
-                totalD += dTruck;
-                totalT += dTruck / 60; // 60km/h
-
-                // Rail segments
-                for (let i = 0; i < railCoordinates.length - 1; i++) {
-                    const dRail = haversine(railCoordinates[i], railCoordinates[i+1]);
-                    totalD += dRail;
-                    totalT += dRail / 50; // 50km/h
-                }
-
-                setMetrics({ dist: Math.round(totalD), time: totalT });
-
-                // Leg 3: Caspian Ferry (Aktau -> Baku)
-                const aktauStation = allNodes.find(s => s.name.toUpperCase().includes('AKTAU'));
-                const bakuStation = allNodes.find(s => s.name.toUpperCase().includes('BAKU'));
+                // 1. Truck
+                const minePos = (parseWKB(bakenoMine.location)?.coordinates || [bakenoMine.lng, bakenoMine.lat]) as [number, number];
+                const firstStationPos = (parseWKB(kzRailNodes[0].location)?.coordinates || [kzRailNodes[0].lng, kzRailNodes[0].lat]) as [number, number];
                 
-                if (aktauStation && bakuStation) {
-                    const aktauPos = (parseWKB(aktauStation.location)?.coordinates || [aktauStation.lng, aktauStation.lat]) as [number, number];
-                    const bakuPos = (parseWKB(bakuStation.location)?.coordinates || [bakuStation.lng, bakuStation.lat]) as [number, number];
-                    
-                    const ferrySourceId = 'aktau-baku-ferry';
-                    if (!map.current?.getSource(ferrySourceId)) {
-                        map.current?.addSource(ferrySourceId, {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: [aktauPos, bakuPos]
-                                }
-                            }
-                        });
-                        map.current?.addLayer({
-                            id: 'aktau-baku-ferry-layer',
-                            type: 'line',
-                            source: ferrySourceId,
-                            paint: {
-                                'line-color': '#6366f1', // Indigo (Maritime)
-                                'line-width': 4,
-                                'line-dasharray': [2, 2],
-                                'line-opacity': 0.8
-                            }
-                        });
-                    }
-
-                    const dFerry = haversine(aktauPos as [number, number], bakuPos as [number, number]);
-                    totalD += dFerry;
-                    totalT += dFerry / 25; // 25km/h Ferry
-                }
-
-                // Leg 4: Georgian Rail (Baku -> Tbilisi -> Poti)
-                const caucasusStations = allNodes.filter(s => 
-                    ['BAKU', 'TBILISI', 'POTI'].some(n => s.name.toUpperCase().includes(n))
-                ).sort((a, b) => {
-                    const order = ['BAKU', 'TBILISI', 'POTI'];
-                    return order.findIndex(n => a.name.toUpperCase().includes(n)) - 
-                           order.findIndex(n => b.name.toUpperCase().includes(n));
-                });
-
-                if (caucasusStations.length > 1) {
-                    const caucasusCoords = caucasusStations.map(s => (parseWKB(s.location)?.coordinates || [s.lng, s.lat]) as [number, number]);
-                    const caucasusSourceId = 'caucasus-rail';
-                    if (!map.current?.getSource(caucasusSourceId)) {
-                        map.current?.addSource(caucasusSourceId, {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: caucasusCoords
-                                }
-                            }
-                        });
-                        map.current?.addLayer({
-                            id: 'caucasus-rail-layer',
-                            type: 'line',
-                            source: caucasusSourceId,
-                            paint: {
-                                'line-color': '#3b82f6',
-                                'line-width': 6,
-                                'line-opacity': 0.9
-                            }
-                        });
-                    }
-
-                    for (let i = 0; i < caucasusCoords.length - 1; i++) {
-                        const dC = haversine(caucasusCoords[i] as [number, number], caucasusCoords[i+1] as [number, number]);
-                        totalD += dC;
-                        totalT += dC / 40; // 40km/h Rail in Georgia
-                    }
-                }
-
-                // Leg 5: Maritime (Poti -> Bosphorus -> Dardanelles -> Aegean -> Mediterranean -> Suez -> Bab el-Mandeb -> Sri Lanka -> Singapore -> Busan)
-                const maritimeNames = ['Poti', 'Bosphorus Strait', 'Dardanelles Strait', 'Aegean Sea', 'Mediterranean Sea', 'Suez Canal', 'Bab el-Mandeb', 'Sri Lanka', 'Singapore', 'Busan'];
-                const maritimeNodes = allNodes.filter(s => 
-                    maritimeNames.some(n => s.name.toUpperCase().includes(n.toUpperCase()))
-                ).sort((a, b) => {
-                    return maritimeNames.findIndex(n => a.name.toUpperCase().includes(n.toUpperCase())) - 
-                           maritimeNames.findIndex(n => b.name.toUpperCase().includes(n.toUpperCase()));
-                });
+                map.current?.addSource('truck-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [minePos, firstStationPos] } } });
+                map.current?.addLayer({ id: 'truck-layer', type: 'line', source: 'truck-route', layout: { visibility }, paint: { 'line-color': '#9ca3af', 'line-width': 4, 'line-dasharray': [2, 2] } });
                 
-                if (maritimeNodes.length > 1) {
-                    const maritimeCoords = maritimeNodes.map(s => (parseWKB(s.location)?.coordinates || [s.lng, s.lat]) as [number, number]);
-                    
-                    const shipSourceId = 'poti-busan-ship';
-                    if (!map.current?.getSource(shipSourceId)) {
-                        map.current?.addSource(shipSourceId, {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: maritimeCoords
-                                }
-                            }
-                        });
-                        map.current?.addLayer({
-                            id: 'poti-busan-ship-layer',
-                            type: 'line',
-                            source: shipSourceId,
-                            paint: {
-                                'line-color': '#6366f1',
-                                'line-width': 3,
-                                'line-dasharray': [4, 4],
-                                'line-opacity': 0.7
-                            }
-                        });
-                    }
+                const dT = haversine(minePos, firstStationPos);
+                totalD += dT; totalT += dT / 60;
 
-                    for (let i = 0; i < maritimeCoords.length - 1; i++) {
-                        const dM = haversine(maritimeCoords[i], maritimeCoords[i+1]);
-                        totalD += dM;
-                        totalT += dM / 35; // Average speed 35km/h for large vessels
-                    }
+                // 2. KZ Rail
+                const railCoords = kzRailNodes.map(s => (parseWKB(s.location)?.coordinates || [s.lng, s.lat]) as [number, number]);
+                map.current?.addSource('rail-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: railCoords } } });
+                map.current?.addLayer({ id: 'rail-layer', type: 'line', source: 'rail-route', layout: { visibility }, paint: { 'line-color': '#3b82f6', 'line-width': 6 } });
+                
+                for (let i = 0; i < railCoords.length - 1; i++) {
+                    const d = haversine(railCoords[i], railCoords[i+1]);
+                    totalD += d; totalT += d / 50;
+                }
+
+                // 3. Ferry (Aktau -> Baku)
+                const aktau = kzRailNodes[kzRailNodes.length-1];
+                const bakuNode = maritimeNodes[0];
+                if (aktau && bakuNode) {
+                    const aktauPos = (parseWKB(aktau.location)?.coordinates || [aktau.lng, aktau.lat]) as [number, number];
+                    const bakuPos = (parseWKB(bakuNode.location)?.coordinates || [bakuNode.lng, bakuNode.lat]) as [number, number];
+                    map.current?.addSource('ferry-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [aktauPos, bakuPos] } } });
+                    map.current?.addLayer({ id: 'ferry-layer', type: 'line', source: 'ferry-route', layout: { visibility }, paint: { 'line-color': '#6366f1', 'line-width': 3, 'line-dasharray': [2, 2] } });
+                    const dF = haversine(aktauPos, bakuPos);
+                    totalD += dF; totalT += dF / 25;
+                }
+
+                // 4. International
+                const intNodeCoords = maritimeNodes.map(s => (parseWKB(s?.location)?.coordinates || [s?.lng, s?.lat]) as [number, number]);
+                map.current?.addSource('maritime-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: intNodeCoords } } });
+                map.current?.addLayer({ id: 'maritime-layer', type: 'line', source: 'maritime-route', layout: { visibility }, paint: { 'line-color': '#6366f1', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.7 } });
+                
+                for (let i = 0; i < intNodeCoords.length - 1; i++) {
+                    const d = haversine(intNodeCoords[i], intNodeCoords[i+1]);
+                    totalD += d; totalT += d / 35;
                 }
 
                 setMetrics({ dist: Math.round(totalD), time: totalT });
             }
-
-            console.log('✅ 데이터 로딩 완료');
         };
 
         return () => {
-            console.log('🧹 Mapbox 정리 중...');
             map.current?.remove();
         };
     }, []);
 
+    useEffect(() => {
+        if (!map.current || !map.current.isStyleLoaded()) return;
+        const layers = ['truck-layer', 'rail-layer', 'ferry-layer', 'maritime-layer'];
+        const visibility = activeTab === 'simulator' ? 'visible' : 'none';
+        layers.forEach(id => { if (map.current?.getLayer(id)) map.current.setLayoutProperty(id, 'visibility', visibility); });
+        map.current.resize();
+    }, [activeTab]);
+
     return (
         <div className="absolute inset-0">
             <div ref={mapContainer} className="absolute inset-0 z-0" />
-
-            {/* Route Metrics Widget */}
-            {metrics && (
-                <RouteMetrics 
-                    totalDistance={metrics.dist} 
-                    estimatedTime={metrics.time} 
-                />
-            )}
-
+            {metrics && activeTab === 'simulator' && <RouteMetrics totalDistance={metrics.dist} estimatedTime={metrics.time} />}
             <div className="absolute bottom-6 left-6 glass p-4 rounded-xl z-10 border border-white/10 w-[240px]">
                 <h3 className="text-sm font-semibold text-white mb-1">카자흐스탄-한국 공급망</h3>
                 <p className="text-xs text-gray-400 mb-3">실시간 광산 및 물류 거점 현황</p>
-                
                 <div className="flex flex-col gap-3 text-[11px]">
-                    {/* Nodes (Points) */}
                     <div className="space-y-1.5">
                         <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">거점 (Nodes)</div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-gray-300">물류 거점 (Station)</span>
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-white/20"></span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-gray-300">희토류 광산 (Mine)</span>
-                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 border border-white/20"></span>
-                        </div>
-                    </div>
-
-                    <div className="w-full h-px bg-white/10"></div>
-
-                    {/* Links (lines) */}
-                    <div className="space-y-1.5">
-                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">운송 (Modes)</div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-gray-400">Truck (광산→거점)</span>
-                            <div className="flex items-center w-8">
-                                <div className="w-full border-b-2 border-dashed border-gray-400"></div>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-blue-300">Train (철도망)</span>
-                            <div className="flex items-center w-8">
-                                <div className="w-full h-0.5 bg-blue-500/80"></div>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-indigo-300">Ship (해상운송)</span>
-                            <div className="flex items-center w-8">
-                                <div className="w-full border-b-2 border-dotted border-indigo-400"></div>
-                            </div>
-                        </div>
+                        <div className="flex items-center justify-between"><span className="text-gray-300">물류 거점 (Station)</span><span className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-white/20"></span></div>
+                        <div className="flex items-center justify-between"><span className="text-gray-300">희토류 광산 (Mine)</span><span className="w-2.5 h-2.5 rounded-full bg-red-500 border border-white/20"></span></div>
                     </div>
                 </div>
             </div>

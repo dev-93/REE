@@ -31,8 +31,8 @@ export default function DBStatusWidget() {
 
                 if (sError || mError) throw new Error('DB 연결 실패');
 
-                // Filter out Korean ports (logistics hubs only)
-                const kzHubs = stations?.filter((s: any) => !s.info?.korea).length || 0;
+                // Filter out Korean ports and maritime waypoints (actual hubs only)
+                const kzHubs = stations?.filter((s: any) => !s.info?.korea && !s.info?.waypoint).length || 0;
 
                 setStatus({
                     stations: kzHubs,

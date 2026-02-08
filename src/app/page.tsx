@@ -13,7 +13,7 @@ export default function Home() {
         <main className="flex h-screen overflow-hidden bg-[#0a0a0c]">
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 relative h-full">
-                <InteractiveMap />
+                <InteractiveMap activeTab={activeTab} />
 
                 {/* Logistics Simulator Overlay */}
                 {activeTab === 'simulator' && <LogisticsSimulator />}
