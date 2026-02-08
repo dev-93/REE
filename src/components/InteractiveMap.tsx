@@ -162,15 +162,65 @@ export default function InteractiveMap() {
             stations?.forEach((s: any) => {
                 const geo = parseWKB(s.location);
                 if (geo?.type === 'Point') {
-                    new mapboxgl.Marker({ color: '#3b82f6' })
+                    // 한국 항구는 인디고(Indigo), 카자흐스탄 거점은 블루(Blue)
+                    const isKorea = s.info?.korea;
+                    const markerColor = isKorea ? '#6366f1' : '#3b82f6';
+                    
+                    new mapboxgl.Marker({ color: markerColor })
                         .setLngLat(geo.coordinates as [number, number])
                         .setPopup(
                             new mapboxgl.Popup().setHTML(`
                                 <div class="p-2 text-black">
-                                    <h3 class="font-bold text-sm text-blue-600">${s.name}</h3>
+                                    <h3 class="font-bold text-sm text-blue-600">
+                                        ${isKorea ? '🇰🇷 ' : '🇰🇿 '}${s.name}
+                                    </h3>
                                     <p class="text-[10px] mt-1 text-gray-600">처리 능력: ${s.capacity}</p>
                                 </div>
                             `)
+                        )
+                        .addTo(map.current!);
+                }
+            });
+
+            mines?.forEach((m: any) => {
+                // GeoJSON (Supabase) vs Seed Data (Flat lat/lng) handling
+                // Use type assertion to ensure lat/lng are treated as numbers
+                const lat = (m.location?.coordinates?.[1] || m.lat) as number;
+                const lng = (m.location?.coordinates?.[0] || m.lng) as number;
+
+                // 광물 타입에 따라 색상/스타일 구분
+                const isMagnet = m.info?.type === 'Magnet';
+                const markerColor = isMagnet ? '#a855f7' : '#ef4444'; // Purple for Magnet, Red for Battery
+                const icon = isMagnet ? '🧲' : '🔋';
+                
+                if (lat && lng) {
+                    const el = document.createElement('div');
+                    el.className = 'mine-marker';
+                    el.style.backgroundColor = markerColor;
+                    el.style.width = '24px';
+                    el.style.height = '24px';
+                    el.style.borderRadius = '50%';
+                    el.style.border = '2px solid white';
+                    el.style.boxShadow = `0 0 10px ${markerColor}`;
+                    el.style.cursor = 'pointer';
+
+                    new mapboxgl.Marker(el)
+                        .setLngLat([lng, lat])
+                        .setPopup(
+                            new mapboxgl.Popup({ offset: 25 })
+                                .setHTML(`
+                                    <div class="p-2 min-w-[200px]">
+                                        <h3 class="font-bold text-sm mb-1 text-black flex items-center gap-1">
+                                            <span>${icon}</span>
+                                            ${m.name}
+                                        </h3>
+                                        <p class="text-xs text-gray-600 mb-1">
+                                            <span class="font-semibold">${m.mineral_type}</span>
+                                        </p>
+                                        <p class="text-xs text-gray-500 mb-1">매장량: ${m.reserve_amount > 0 ? m.reserve_amount.toLocaleString() + '톤' : '추정치'}</p>
+                                        ${m.info?.business_point ? `<p class="text-[10px] text-blue-600 bg-blue-50 p-1 rounded mt-1">💡 ${m.info.business_point}</p>` : ''}
+                                    </div>
+                                `)
                         )
                         .addTo(map.current!);
                 }
@@ -250,7 +300,8 @@ export default function InteractiveMap() {
                 }
             });
 
-            // 2. 철도 노선 데이터 (Layers)
+            // 2. 철도 노선 데이터 (Layers) - 잠시 숨김 처리 (사용자 요청: "일단 역 사이를 긋는 선을 표시하지 말아줘")
+            /*
             const { data: rails } = await supabase.from('rail_lines').select('*');
             console.log('Rail lines:', rails?.length);
             
@@ -287,6 +338,86 @@ export default function InteractiveMap() {
                             'line-width': 3,
                             'line-opacity': 0.8,
                         },
+                    });
+                }
+            });
+            */
+
+            // 3. 복합 운송 경로 (Multi-modal Transport) - Trucking Routes
+            // 광산(Mine) -> 로컬 거점(Feeder Station) 연결
+            // 스타일: 회색 점선 (Gray Dashed Line)
+            
+            stations?.forEach((station: any) => {
+                if (station.info?.feeder && station.info?.mine_connection) {
+                    // 연결된 광산 찾기 (쉼표로 구분된 다중 광산 처리)
+                    const connectedMineNames = station.info.mine_connection.split(',').map((s: string) => s.trim());
+                    
+                    connectedMineNames.forEach((targetMineName: string) => {
+                         const connectedMine = mines?.find((m: any) => m.name.includes(targetMineName));
+                    
+                        if (connectedMine) {
+                            const mineGeo = parseWKB(connectedMine.location);
+                            const stationGeo = parseWKB(station.location);
+                            
+                            if (mineGeo?.type === 'Point' && stationGeo?.type === 'Point') {
+                                // Unique ID generation (station + mine)
+                                const routeSourceId = `truck-route-${station.name}-${connectedMine.name}`;
+                                const routeColor = '#9ca3af'; // Gray-400 for Trucking
+
+                                if (!map.current?.getSource(routeSourceId)) {
+                                    map.current?.addSource(routeSourceId, {
+                                        type: 'geojson',
+                                        data: {
+                                            type: 'Feature',
+                                            properties: {
+                                                description: `트럭 운송: ${connectedMine.name.split(' ')[0]} -> ${station.name.split(' ')[0]} (${station.info.distance}, ${station.info.cost})`
+                                            },
+                                            geometry: {
+                                                type: 'LineString',
+                                                coordinates: [
+                                                    mineGeo.coordinates as [number, number],
+                                                    stationGeo.coordinates as [number, number]
+                                                ]
+                                            }
+                                        }
+                                    });
+
+                                    map.current?.addLayer({
+                                        id: `truck-line-${station.name}-${connectedMine.name}`,
+                                        type: 'line',
+                                        source: routeSourceId,
+                                        layout: {
+                                            'line-join': 'round',
+                                            'line-cap': 'round'
+                                        },
+                                        paint: {
+                                            'line-color': routeColor,
+                                            'line-width': 2,
+                                            'line-dasharray': [2, 2], // 점선
+                                            'line-opacity': 0.8
+                                        }
+                                    });
+                                    
+                                    // Tooltip event
+                                    const layerId = `truck-line-${station.name}-${connectedMine.name}`;
+                                    map.current?.on('mouseenter', layerId, (e) => {
+                                        map.current!.getCanvas().style.cursor = 'pointer';
+                                        const description = e.features?.[0]?.properties?.description;
+                                        
+                                        new mapboxgl.Popup({ closeButton: false })
+                                            .setLngLat(e.lngLat)
+                                            .setHTML(`<div class="text-black text-xs font-bold px-1">${description}</div>`)
+                                            .addTo(map.current!);
+                                    });
+                                    
+                                    map.current?.on('mouseleave', layerId, () => {
+                                        map.current!.getCanvas().style.cursor = '';
+                                        const popups = document.getElementsByClassName('mapboxgl-popup');
+                                        if (popups.length) popups[0].remove();
+                                    });
+                                }
+                            }
+                        }
                     });
                 }
             });

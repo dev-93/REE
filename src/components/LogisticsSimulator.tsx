@@ -18,7 +18,7 @@ export default function LogisticsSimulator() {
                         <h2 className="text-xl font-bold text-white">물류 루트 시뮬레이터</h2>
                     </div>
                     <p className="text-sm text-gray-400">
-                        최적의 운송 경로를 시뮬레이션하고 비용과 시간을 분석합니다.
+                        광산에서 항구까지의 최적 운송 경로를 산출합니다.
                     </p>
                 </div>
             </div>
@@ -27,23 +27,53 @@ export default function LogisticsSimulator() {
             <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">출발지 (Origin)</label>
+                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">출발지 (Origin: Mine/Hub)</label>
                         <select className="w-full bg-[#1a1a1e] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
-                            <option>알마티 (Almaty)</option>
-                            <option>아스타나 (Astana)</option>
-                            <option>쉼켄트 (Shymkent)</option>
+                            <option value="">출발지를 선택하세요</option>
+                            <optgroup label="🧲 자석/모터용 (Magnet: Rare Earths)">
+                                <option value="Verkhne-Espe">베르크네-에스페 (Verkhne-Espe) - 중희토류</option>
+                                <option value="Akbulak">아크불락 (Akbulak) - 경희토류</option>
+                                <option value="Kundybai">쿤디바이 (Kundybai) - 희토류</option>
+                            </optgroup>
+                            <optgroup label="🔋 배터리용 (Battery: Lithium)">
+                                <option value="Bakeno">바케노 (Bakeno) - 리튬/탄탈륨</option>
+                                <option value="Kuyrekti-Kol">쿠이레크티콜 (Kuyrekti-Kol) - 리튬</option>
+                            </optgroup>
+                            <optgroup label="🇰🇿 주요 거점 (Logistics Hubs)">
+                                <option value="Almaty">알마티 (Almaty)</option>
+                                <option value="Astana">아스타나 (Astana)</option>
+                                <option value="Dostyk">도스틱 (Dostyk)</option>
+                            </optgroup>
                         </select>
                     </div>
 
+                    {/* Connection Info Display (Visual Only for now) */}
+                    <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                            <span>예상 연결 경로 (First Mile)</span>
+                        </div>
+                        <p className="text-sm text-gray-300 pl-3.5 border-l border-white/10 ml-0.5">
+                            광산을 선택하면 로컬 거점역이 자동 지정됩니다.<br/>
+                            <span className="text-gray-500 text-xs">(예: 바케노 → 장기즈-토베, 40km 트럭)</span>
+                        </p>
+                    </div>
+
                     <div className="flex justify-center">
-                        <div className="w-0.5 h-8 bg-gradient-to-b from-white/10 to-white/5 mx-auto"></div>
+                        <div className="w-0.5 h-6 bg-gradient-to-b from-white/10 to-white/5 mx-auto"></div>
                     </div>
 
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">도착지 (Destination)</label>
                         <select className="w-full bg-[#1a1a1e] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
-                            <option>부산항 (Busan Port)</option>
-                            <option>인천항 (Incheon Port)</option>
+                            <option value="">도착지를 선택하세요</option>
+                            <optgroup label="🇰🇷 대한민국 주요 항구">
+                                <option selected>부산항 (Busan Port)</option>
+                                <option>인천항 (Incheon Port)</option>
+                                <option>평택·당진항</option>
+                                <option>광양항</option>
+                                <option>포항영일만항</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>
@@ -51,7 +81,7 @@ export default function LogisticsSimulator() {
                 <div className="pt-4 border-t border-white/10">
                     <button className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 active:scale-95">
                         <Play size={18} fill="currentColor" />
-                        <span>시뮬레이션 시작</span>
+                        <span>루트 분석 및 시뮬레이션</span>
                     </button>
                 </div>
             </div>
@@ -59,19 +89,21 @@ export default function LogisticsSimulator() {
             {/* Recent History Placeholder */}
             <div className="glass p-4 rounded-xl border border-white/10">
                 <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-gray-400">최근 시뮬레이션 이력</span>
+                    <span className="text-xs font-semibold text-gray-400">추천 루트 (AI Recommendation)</span>
                     <Clock size={12} className="text-gray-500" />
                 </div>
                 <div className="space-y-2">
-                    <div className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer border border-transparent hover:border-white/10 group">
+                    <div className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer border border-transparent hover:border-orange-500/30 group">
                         <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-gray-200 group-hover:text-orange-400 transition-colors">알마티 → 부산항</span>
-                            <span className="text-[10px] text-gray-500">2시간 전</span>
+                            <span className="text-sm font-medium text-gray-200 group-hover:text-orange-400 transition-colors">바케노 → 부산항 (TCR)</span>
+                            <span className="text-[10px] text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded">BEST</span>
                         </div>
-                        <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                            <span>TCR 노선</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-                            <span>$4,200/ton</span>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                            <span>Truck(40km)</span>
+                            <span>→</span>
+                            <span>Rail(4,500km)</span>
+                            <span>→</span>
+                            <span>Ship</span>
                         </div>
                     </div>
                 </div>

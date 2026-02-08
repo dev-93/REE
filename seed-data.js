@@ -44,6 +44,57 @@ export const stations = [
         capacity: 'Western Hub',
         info: { tcr: true },
     },
+    
+    // --- Feeder Stations (for Mine Transport) ---
+    {
+        name: '장기즈-토베 (Zhangiz-Tobe)',
+        lat: 49.2085,
+        lng: 81.1632,
+        capacity: 'Feeder for Bakeno (Battery)',
+        info: { feeder: true, mine_connection: 'Bakeno', transport_type: 'Truck', distance: '40km', cost: '$10/ton' },
+    },
+    {
+        name: '세메이 (Semey)',
+        lat: 50.4117,
+        lng: 80.2676,
+        capacity: 'Eastern Hub',
+        info: { hub: true, region: 'East' },
+    },
+    {
+        name: '아야고즈 (Ayagoz)',
+        lat: 47.9644,
+        lng: 80.4344,
+        capacity: 'Feeder for Verkhne-Espe (Magnet)',
+        info: { junction: true, feeder: true, mine_connection: 'Verkhne-Espe', transport_type: 'Truck', distance: '80km', cost: '$20/ton' },
+    },
+    {
+        name: '아르칼리크 (Arkalyk)',
+        lat: 50.2486,
+        lng: 66.9114,
+        capacity: 'Feeder for Kuyrekti-Kol (Battery)',
+        info: { feeder: true, mine_connection: 'Kuyrekti-Kol', transport_type: 'Truck', distance: '120km', cost: '$25/ton' },
+    },
+    {
+        name: '에실 (Esil)',
+        lat: 51.9592,
+        lng: 66.3056,
+        capacity: 'Feeder for Kundybai (Magnet)',
+        info: { hub: true, region: 'North', feeder: true, mine_connection: 'Kundybai', transport_type: 'Truck', distance: '150km', cost: '$30/ton' },
+    },
+    {
+        name: '키질로르다 (Kyzylorda)',
+        lat: 44.8479,
+        lng: 65.5002,
+        capacity: 'Feeder for Akbulak (Magnet)',
+        info: { feeder: true, mine_connection: 'Akbulak', transport_type: 'Truck', distance: '200km', cost: '$40/ton' },
+    },
+    {
+        name: '제즈카즈간 (Jezkazgan)',
+        lat: 47.7833,
+        lng: 67.7167,
+        capacity: 'Central Hub',
+        info: { hub: true, region: 'Central' },
+    },
 
     // --- South Korea Ports ---
     {
@@ -77,29 +128,53 @@ export const stations = [
 ];
 
 export const mines = [
+    // 1. 자석 및 모터용 (Magnet / Rare Earths) - 성림첨단산업 타겟
+    {
+        name: '베르크네-에스페 (Verkhne-Espe)',
+        lat: 48.1000,
+        lng: 81.4500,
+        mineral_type: '중희토류 (Dy, Tb)',
+        reserve_amount: 0,
+        production_capacity: 0,
+        info: { type: 'Magnet', business_point: '영구자석 필수재, 성림첨단산업 최우선 타겟' }
+    },
+    {
+        name: '아크불락 (Akbulak)',
+        lat: 48.3333,
+        lng: 64.8333,
+        mineral_type: '희토류 (Nd, Pr)',
+        reserve_amount: 0,
+        production_capacity: 0,
+        info: { type: 'Magnet', business_point: '남부 위치, 경희토류 풍부' }
+    },
+    {
+        name: '쿤디바이 (Kundybai)',
+        lat: 51.2667,
+        lng: 61.5000,
+        mineral_type: '희토류 (Y, Ce)',
+        reserve_amount: 0,
+        production_capacity: 0,
+        info: { type: 'Magnet', business_point: '북서부 위치, 이트륨 풍부' }
+    },
+
+    // 2. 이차전지 및 배터리용 (Battery / Lithium) - 현대차, 배터리 3사 타겟
     {
         name: '바케노 (Bakeno)',
-        lat: 49.70567,
-        lng: 82.93569,
-        mineral_type: '리튬, 탄탈륨',
-        reserve_amount: 25000, // 톤 (from image)
-        production_capacity: 0
+        lat: 49.0833,
+        lng: 81.5000,
+        mineral_type: '리튬 (Li), 탄탈륨',
+        reserve_amount: 25000,
+        production_capacity: 0,
+        info: { type: 'Battery', business_point: '동부 핵심 리튬 광산 (KIGAM 협력)' }
     },
     {
         name: '쿠이레크티콜 (Kuyrekti-Kol)',
-        lat: 51.50000, // Approximate (Akmola region)
-        lng: 71.50000, // Approximate (Akmola region)
-        mineral_type: '네오디뮴, 희토류',
-        reserve_amount: 0,
-        production_capacity: 0
-    },
-    {
-        name: '베르크네-에스페 (Verkhne-Espe)',
-        lat: 48.10000,
-        lng: 81.45000,
-        mineral_type: '리튬, 베릴륨',
-        reserve_amount: 0,
-        production_capacity: 0
+        lat: 51.5000,
+        lng: 71.5000, // Approximate near Astana/North
+        mineral_type: '리튬 (Li)',
+        reserve_amount: 15000,
+        production_capacity: 0,
+        info: { type: 'Battery', business_point: '북부 리튬 거점, 신규 유망 광산' }
     }
 ];
 
