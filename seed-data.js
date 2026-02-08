@@ -96,6 +96,21 @@ export const stations = [
         info: { hub: true, region: 'Central' },
     },
 
+    {
+        name: '베이뉴 (Beyneu)',
+        lat: 45.3167,
+        lng: 55.2000,
+        capacity: 'Key Junction (To Aktau/Uzbekistan)',
+        info: { junction: true, route_point: true },
+    },
+    {
+        name: '망기슐라크 (Mangystau)',
+        lat: 43.6900,
+        lng: 51.1700,
+        capacity: 'Rail Terminal for Aktau',
+        info: { terminal: true, route_point: true },
+    },
+    
     // --- South Korea Ports ---
     {
         name: '부산항 (Port of Busan)',

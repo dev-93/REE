@@ -343,85 +343,6 @@ export default function InteractiveMap() {
             });
             */
 
-            // 3. 복합 운송 경로 (Multi-modal Transport) - Trucking Routes
-            // 광산(Mine) -> 로컬 거점(Feeder Station) 연결
-            // 스타일: 회색 점선 (Gray Dashed Line)
-            
-            stations?.forEach((station: any) => {
-                if (station.info?.feeder && station.info?.mine_connection) {
-                    // 연결된 광산 찾기 (쉼표로 구분된 다중 광산 처리)
-                    const connectedMineNames = station.info.mine_connection.split(',').map((s: string) => s.trim());
-                    
-                    connectedMineNames.forEach((targetMineName: string) => {
-                         const connectedMine = mines?.find((m: any) => m.name.includes(targetMineName));
-                    
-                        if (connectedMine) {
-                            const mineGeo = parseWKB(connectedMine.location);
-                            const stationGeo = parseWKB(station.location);
-                            
-                            if (mineGeo?.type === 'Point' && stationGeo?.type === 'Point') {
-                                // Unique ID generation (station + mine)
-                                const routeSourceId = `truck-route-${station.name}-${connectedMine.name}`;
-                                const routeColor = '#9ca3af'; // Gray-400 for Trucking
-
-                                if (!map.current?.getSource(routeSourceId)) {
-                                    map.current?.addSource(routeSourceId, {
-                                        type: 'geojson',
-                                        data: {
-                                            type: 'Feature',
-                                            properties: {
-                                                description: `트럭 운송: ${connectedMine.name.split(' ')[0]} -> ${station.name.split(' ')[0]} (${station.info.distance}, ${station.info.cost})`
-                                            },
-                                            geometry: {
-                                                type: 'LineString',
-                                                coordinates: [
-                                                    mineGeo.coordinates as [number, number],
-                                                    stationGeo.coordinates as [number, number]
-                                                ]
-                                            }
-                                        }
-                                    });
-
-                                    map.current?.addLayer({
-                                        id: `truck-line-${station.name}-${connectedMine.name}`,
-                                        type: 'line',
-                                        source: routeSourceId,
-                                        layout: {
-                                            'line-join': 'round',
-                                            'line-cap': 'round'
-                                        },
-                                        paint: {
-                                            'line-color': routeColor,
-                                            'line-width': 2,
-                                            'line-dasharray': [2, 2], // 점선
-                                            'line-opacity': 0.8
-                                        }
-                                    });
-                                    
-                                    // Tooltip event
-                                    const layerId = `truck-line-${station.name}-${connectedMine.name}`;
-                                    map.current?.on('mouseenter', layerId, (e) => {
-                                        map.current!.getCanvas().style.cursor = 'pointer';
-                                        const description = e.features?.[0]?.properties?.description;
-                                        
-                                        new mapboxgl.Popup({ closeButton: false })
-                                            .setLngLat(e.lngLat)
-                                            .setHTML(`<div class="text-black text-xs font-bold px-1">${description}</div>`)
-                                            .addTo(map.current!);
-                                    });
-                                    
-                                    map.current?.on('mouseleave', layerId, () => {
-                                        map.current!.getCanvas().style.cursor = '';
-                                        const popups = document.getElementsByClassName('mapboxgl-popup');
-                                        if (popups.length) popups[0].remove();
-                                    });
-                                }
-                            }
-                        }
-                    });
-                }
-            });
-
             console.log('✅ 데이터 로딩 완료');
         };
 
@@ -435,29 +356,46 @@ export default function InteractiveMap() {
         <div className="absolute inset-0">
             <div ref={mapContainer} className="absolute inset-0 z-0" />
 
-            <div className="absolute bottom-6 left-6 glass p-4 rounded-xl z-10 border border-white/10">
+            <div className="absolute bottom-6 left-6 glass p-4 rounded-xl z-10 border border-white/10 w-[240px]">
                 <h3 className="text-sm font-semibold text-white mb-1">카자흐스탄-한국 공급망</h3>
-                <p className="text-xs text-gray-400">실시간 광산 및 물류 거점 데이터</p>
-                <div className="mt-3 flex flex-col gap-2 text-[10px]">
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                <p className="text-xs text-gray-400 mb-3">실시간 광산 및 물류 거점 현황</p>
+                
+                <div className="flex flex-col gap-3 text-[11px]">
+                    {/* Nodes (Points) */}
+                    <div className="space-y-1.5">
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">거점 (Nodes)</div>
+                        <div className="flex items-center justify-between">
                             <span className="text-gray-300">물류 거점 (Station)</span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-white/20"></span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        <div className="flex items-center justify-between">
                             <span className="text-gray-300">희토류 광산 (Mine)</span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 border border-white/20"></span>
                         </div>
                     </div>
-                    <div className="w-full h-px bg-white/10 my-1"></div>
-                    <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-4 h-0.5 bg-blue-400"></span>
-                            <span className="text-blue-200">중국 횡단 철도 (TCR)</span>
+
+                    <div className="w-full h-px bg-white/10"></div>
+
+                    {/* Links (lines) */}
+                    <div className="space-y-1.5">
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">운송 (Modes)</div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-gray-400">Truck (광산→거점)</span>
+                            <div className="flex items-center w-8">
+                                <div className="w-full border-b-2 border-dashed border-gray-400"></div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-4 h-0.5 bg-orange-400"></span>
-                            <span className="text-orange-200">중간 회랑 (TITR)</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-blue-300">Train (철도망)</span>
+                            <div className="flex items-center w-8">
+                                <div className="w-full h-0.5 bg-blue-500/80"></div>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-indigo-300">Ship (해상운송)</span>
+                            <div className="flex items-center w-8">
+                                <div className="w-full border-b-2 border-dotted border-indigo-400"></div>
+                            </div>
                         </div>
                     </div>
                 </div>

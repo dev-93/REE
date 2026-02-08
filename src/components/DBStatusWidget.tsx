@@ -20,17 +20,22 @@ export default function DBStatusWidget() {
     useEffect(() => {
         const checkDB = async () => {
             try {
-                const { count: sCount, error: sError } = await supabase
+                // Fetch all stations to filter by info.korea
+                const { data: stations, error: sError } = await supabase
                     .from('stations')
-                    .select('*', { count: 'exact', head: true });
+                    .select('*');
+
                 const { count: mCount, error: mError } = await supabase
                     .from('mines')
                     .select('*', { count: 'exact', head: true });
 
                 if (sError || mError) throw new Error('DB 연결 실패');
 
+                // Filter out Korean ports (logistics hubs only)
+                const kzHubs = stations?.filter((s: any) => !s.info?.korea).length || 0;
+
                 setStatus({
-                    stations: sCount || 0,
+                    stations: kzHubs,
                     mines: mCount || 0,
                     loading: false,
                     error: null,
